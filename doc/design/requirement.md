@@ -2,13 +2,16 @@
 
 ## ✅ Functional Requirements
 
+## Conversation Types
+- Nornal one, like chatgpt
+- Topic one, the main feature
+
 ### Conversation Actions
 Each `ConversationStateNode` supports:
-- **Move Forward** – add next step with auto-summary
-- **Step Back** – stash current state for retry/edit
+- **Move Forward** – add next step with auto-summary, with option to question previous parts
+- **Prompt Refine** – stash current state for retry/edit
 - **Shark Explanation** – fork sub-topic from any message
-- **Question on Previous** – attach multiple follow-up questions
-
+- **Fork** - use selected node part to generate a new conversation
 ### Conversation Modes
 - Support multiple modes:
   - **Mainline**
@@ -24,8 +27,9 @@ Each `ConversationStateNode` supports:
 - Allow users to **summarize** conversation manually.(There is also an auto one)
 - Support **collapsible main chain** (some parts collapse automatically).
 - Auto-close empty sub-branch.
-
-
+- Auto-collapse the prompt input by user
+- Sometimes, some response from the language model, is not proper/not understandable by users, we need to think a method, which is not delete that node, but to somehow ignore it, so that
+- auto-detect if the user is start talking a different topic, then move to a new conversation.
 ### UI Behavior
 - Never auto-scroll when messages are returned.
 - Allow user to **choose where to attach** follow-up (default: previous node).

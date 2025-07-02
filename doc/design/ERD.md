@@ -40,6 +40,7 @@ Represents a node in the mainline or a sub-topic.
 - `summary`
 - `created_at`
 - `deleted_at` (nullable, for soft deletion)
+- `history_count` (this is the node that counts to history)
 
 🔗 **Relationships**
 - Has many `Messages`
@@ -49,8 +50,7 @@ Represents a node in the mainline or a sub-topic.
 **Constraints**:
 - If `type` is "mainline", `parent_node_id` must either be null (for the first node) or reference another "mainline" node
 - If `type` is "sub-topic", `parent_node_id` must not be null and must reference either a "mainline" or "sub-topic" node
-- If `type` is "mainline", the node must have exactly one user message and one assistant message
-- If `type` is "sub-topic", the node can have multiple user and assistant messages
+- the node must have exactly one user message and one assistant message
 
 ---
 
@@ -98,6 +98,9 @@ Represents a node in the mainline or a sub-topic.
 - `previous_content`
 - `new_content`
 - `edited_at`
+
+🔗 **Relationships**
+- Belongs to `Message`
 
 ---
 

@@ -2,40 +2,36 @@
 
 ## Move Forward
 
-```mermaid
-graph TD
-    A[User Initiates Move Forward] --> B[Create New ConversationStateNode]
-    B --> C[Generate System Summary for Previous Node]
-    C --> D[Add User Message to New Node]
-    D --> E[Generate Assistant Response]
-```
+**Process Flow:**
+1. User Initiates Move Forward
+2. Create New ConversationStateNode
+3. Generate System Summary for Current Node
+5. Generate Assistant Response
+5. Add User Message/ assistant message to New Node
 
-## Step Back
-
-```mermaid
-graph TD
-    A[User Initiates Step Back] --> B[Stash Current State]
-    B --> C[Restore Previous State]
-    C --> D[Allow Edit/Retry]
-```
+## Prompt Refine
+prompt refine works on node
+**Process Flow:**
+1. User Initiates Prompt Refine
+2. Stash Current messages of the node
+3. The user will modify the user message
+4. Re-generate assistant message
+5. Allow to keep the new message, or to restore old one
 
 ## Shark Explanation
 
-```mermaid
-graph TD
-    A[User Initiates Shark Explanation] --> B[Create Sub-topic Node]
-    B --> C[Link to Parent Message/Node]
-    C --> D[Add User Question]
-    D --> E[Generate Assistant Response]
-    E --> F[Provide Return Path to Main Conversation]
-```
+**Process Flow:**
+1. User Initiates Shark Explanation
+2. Create Sub-topic Node
+6. Provide Return Path to Main Conversation
 
-## Question on Previous
+## Fork
 
-```mermaid
-graph TD
-    A[User Initiates Question on Previous] --> B[Select Target Message/Node]
-    B --> C[Attach New Follow-up Question]
-    C --> D[Generate Assistant Response]
-    D --> E[Link Response to Original Context]
-```
+**Process Flow:**
+1. User Selects Start Node and End Node for Forking
+   - Default: Include all nodes of current conversation tree
+   - Optional: User can specify a subset by selecting start and end nodes
+2. Extract All Nodes Between Start and End Nodes (inclusive)
+3. Create New Conversation with Selected Nodes as Context
+4. Initialize New Conversation State
+5. Allow User to Continue in the New Conversation Thread
