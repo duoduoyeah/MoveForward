@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../utils/prisma';
 import { ApiError } from './error.middleware';
 import { config } from '../config';
+import { verifyAccessToken } from '../utils/token';
 
 // Extend Express Request type to include user
 declare global {
@@ -10,6 +11,7 @@ declare global {
     interface Request {
       user?: {
         id: string;
+        authStatus?: string;
       };
     }
   }
@@ -31,7 +33,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     const token = authHeader.replace('Bearer ', '');
     
     try {
-      const decoded = jwt.verify(token, config.jwtSecret) as { id: string };
+      const decoded = verifyAccessToken(token);
       
       // Check if user exists
       const user = await prisma.user.findUnique({
@@ -43,7 +45,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       }
 
       // Add user to request object
-      req.user = { id: decoded.id };
+      req.user = { id: decoded.id, authStatus: decoded.authStatus };
       next();
     } catch (err) {
       throw new ApiError('Token is not valid', 401);

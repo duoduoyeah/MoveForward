@@ -9,9 +9,14 @@ function getEnvVar(key: string): string {
   return val;
 }
 
+type JWTExpiration = `${number}${'s' | 'm' | 'h' | 'd'}`;
+
 export const config = {
   jwtSecret: getEnvVar('JWT_SECRET'),
   port: process.env.PORT || '3000',
-  jwtExpiration: process.env.JWT_EXPIRATION || '24h',
+  jwtAccessExpiration: '15m' as JWTExpiration,
+  jwtRefreshExpiration: '7d' as JWTExpiration,
+  refreshTokenCookieName: 'refresh_token',
+  jwtCookieSecure: process.env.NODE_ENV === 'production',
   // add more here later
 };

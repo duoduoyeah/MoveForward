@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from 'dotenv';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -21,8 +22,12 @@ const port = process.env.PORT || 4000;
 
 // Middleware
 app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true, // Required for cookies
+})); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
+app.use(cookieParser()); // Parse cookies
 app.use(morgan('dev')); // Request logging
 
 // Static files (for file uploads)

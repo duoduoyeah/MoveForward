@@ -1,21 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import { validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../utils/prisma';
 import { ApiError } from '../middleware/error.middleware';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token';
 import { config } from '../config';
+import jwt from 'jsonwebtoken';
 
 /**
  * Register a new user
  */
-export const register = async (req: Request, res: Response, next: NextFunction) => {
+export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      res.status(400).json({ errors: errors.array() });
+      return;
     }
 
     const { name, email, password } = req.body;
@@ -44,11 +46,19 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
-    // Generate JWT
-    const token = generateToken(user.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id, user.authStatus);
+    const refreshToken = generateRefreshToken(user.id, user.authStatus);
+
+    // Set refresh token as HTTP-only cookie
+    res.cookie(config.refreshTokenCookieName, refreshToken, {
+      httpOnly: true,
+      secure: config.jwtCookieSecure,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    });
 
     res.status(201).json({
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         name: user.name,
@@ -65,12 +75,13 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 /**
  * Login user
  */
-export const login = async (req: Request, res: Response, next: NextFunction) => {
+export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      res.status(400).json({ errors: errors.array() });
+      return;
     }
 
     const { email, password } = req.body;
@@ -84,6 +95,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       throw new ApiError('Invalid credentials', 401);
     }
 
+    // Check if password exists
+    if (user.authStatus === 'anonymous' || !user.password) {
+      throw new ApiError('Invalid credentials', 401);
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       throw new ApiError('Invalid credentials', 401);
@@ -91,22 +107,30 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     
 
     // Update last login
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    // Generate JWT
-    const token = generateToken(user.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id, user.authStatus);
+    const refreshToken = generateRefreshToken(user.id, user.authStatus);
+
+    // Set refresh token as HTTP-only cookie
+    res.cookie(config.refreshTokenCookieName, refreshToken, {
+      httpOnly: true,
+      secure: config.jwtCookieSecure,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    });
 
     res.status(200).json({
-      token,
+      token: accessToken,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        lastLoginAt: new Date(),
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        lastLoginAt: updatedUser.lastLoginAt,
       },
     });
   } catch (error) {
@@ -117,7 +141,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 /**
  * Create an anonymous session
  */
-export const createAnonymousSession = async (req: Request, res: Response, next: NextFunction) => {
+export const createAnonymousSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // Generate a session ID
     const sessionId = uuidv4();
@@ -131,11 +155,19 @@ export const createAnonymousSession = async (req: Request, res: Response, next: 
       },
     });
 
-    // Generate JWT
-    const token = generateToken(user.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id, user.authStatus);
+    const refreshToken = generateRefreshToken(user.id, user.authStatus);
+
+    // Set refresh token as HTTP-only cookie
+    res.cookie(config.refreshTokenCookieName, refreshToken, {
+      httpOnly: true,
+      secure: config.jwtCookieSecure,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    });
 
     res.status(200).json({
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         sessionId: user.sessionId,
@@ -151,9 +183,18 @@ export const createAnonymousSession = async (req: Request, res: Response, next: 
  * Logout - invalidate token
  * Note: In a real app, you'd use a token blacklist or short-lived tokens
  */
-export const logout = async (req: Request, res: Response, next: NextFunction) => {
+export const logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // In a stateless JWT setup, the client just removes the token
+    // Log the logout event for observability/debugging
+    const userId = req.user?.id;
+    const authStatus = req.user?.authStatus;
+    
+    console.log(`User logged out: ${userId} (${authStatus})`);
+    
+    // Clear the refresh token cookie
+    res.clearCookie(config.refreshTokenCookieName);
+    
     // Here we just send a success message
     res.status(204).send();
   } catch (error) {
@@ -161,9 +202,30 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-/**
- * Generate JWT token
- */
-const generateToken = (userId: string): string => {
-  return jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: config.jwtExpiration } as jwt.SignOptions);
+export const refreshAccessToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const refreshToken = req.cookies[config.refreshTokenCookieName];
+    if (!refreshToken) {
+      throw new ApiError('Refresh token not found', 401);
+    }
+
+    try {
+      // Verify the refresh token
+      const decoded = verifyRefreshToken(refreshToken);
+      
+      console.log(`Refreshed access token for user: ${decoded.id} (${decoded.authStatus})`);
+      
+      // Generate new access token only - don't rotate refresh token in stateless approach
+      const accessToken = generateAccessToken(decoded.id, decoded.authStatus);
+
+      // Return new access token
+      res.status(200).json({
+        token: accessToken,
+      });
+    } catch (error) {
+      throw new ApiError('Invalid refresh token', 401);
+    }
+  } catch (error) {
+    next(error);
+  }
 };

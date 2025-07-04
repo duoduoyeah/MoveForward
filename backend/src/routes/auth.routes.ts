@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import * as authController from '../controllers/auth.controller';
+import { Request, Response, NextFunction } from 'express';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.post(
       .isLength({ min: 6 })
       .withMessage('Password must be at least 6 characters long')
   ],
-  authController.register
+  (req: Request, res: Response, next: NextFunction) => authController.register(req, res, next)
 );
 
 // Login user
@@ -24,13 +25,22 @@ router.post(
     body('email').isEmail().withMessage('Please provide a valid email'),
     body('password').notEmpty().withMessage('Password is required')
   ],
-  authController.login
+  (req: Request, res: Response, next: NextFunction) => authController.login(req, res, next)
 );
 
 // Create anonymous session
-router.post('/anonymous', authController.createAnonymousSession);
+router.post('/anonymous', (req: Request, res: Response, next: NextFunction) => 
+  authController.createAnonymousSession(req, res, next)
+);
 
 // Logout
-router.post('/logout', authController.logout);
+router.post('/logout', (req: Request, res: Response, next: NextFunction) => 
+  authController.logout(req, res, next)
+);
+
+// Refresh access token
+router.post('/refresh-token', (req: Request, res: Response, next: NextFunction) => 
+  authController.refreshAccessToken(req, res, next)
+);
 
 export default router;
