@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  name         String
+  email        String?        @unique // nullable for non-login users
+  authStatus   String         @default("anonymous") // "authenticated" | "anonymous"
+  sessionId    String?        @unique // for anonymous users
+  lastLoginAt  DateTime?
+  preferences  Json?          // storing UI/theme settings
+  role         String         @default("user") // "user" | "admin" | "moderator"
+  createdAt    DateTime       @default(now())
+  conversations Conversation[]
+
+  @@map("users")
+}
+
+model Conversation {
+  id         String                  @id @default(uuid())
+  userId     String
+  title      String?
+  createdAt  DateTime                @default(now())
+  deletedAt  DateTime?
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stateNodes ConversationStateNode[]
+
+  @@index([userId])
+  @@map("conversations")
+}
+
+model ConversationStateNode {
+  id             String                  @id @default(uuid())
+  conversationId String
+  parentNodeId   String?
+  type           String                  // "mainline" | "sub-topic"
+  summary        String?
+  createdAt      DateTime                @default(now())
+  deletedAt      DateTime?
+  historyCount   Int                     @default(0)
+  
+  // Relationships
+  conversation   Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parentNode     ConversationStateNode?  @relation("NodeToNode", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  childNodes     ConversationStateNode[] @relation("NodeToNode")
+  messages       Message[]
+  nodeSummary    Summary?
+
+  @@index([conversationId])
+  @@index([parentNodeId])
+  @@map("conversation_state_nodes")
+}
+
+model Message {
+  id           String          @id @default(uuid())
+  stateNodeId  String
+  author       String          // "user" | "assistant"
+  content      String          @db.Text
+  sequenceNumber Int
+  createdAt    DateTime        @default(now())
+  deletedAt    DateTime?
+  
+  // Relationships
+  stateNode    ConversationStateNode @relation(fields: [stateNodeId], references: [id], onDelete: Cascade)
+  fileReferences FileReference[]
+  edits        Edit[]
+
+  @@index([stateNodeId])
+  @@map("messages")
+}
+
+model FileReference {
+  id          String    @id @default(uuid())
+  messageId   String
+  fileName    String
+  fileUrl     String
+  fileType    String
+  uploadedAt  DateTime  @default(now())
+  
+  // Relationships
+  message     Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("file_references")
+}
+
+model Summary {
+  id           String                @id @default(uuid())
+  stateNodeId  String                @unique
+  userSummary  String?               @db.Text
+  systemSummary String               @db.Text
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  
+  // Relationships
+  stateNode    ConversationStateNode @relation(fields: [stateNodeId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+model Edit {
+  id             String    @id @default(uuid())
+  messageId      String
+  previousContent String    @db.Text
+  newContent     String    @db.Text
+  editedAt       DateTime  @default(now())
+  
+  // Relationships
+  message        Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("edits")
+} 
